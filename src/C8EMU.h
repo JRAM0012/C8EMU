@@ -20,8 +20,12 @@
 #define KEY_SIZE 16
 #define DISPLAY_COLS 64
 #define DISPLAY_ROWS 32
-#define IS_BIT_SET(byte, bit) (((byte) & (0x80 >> (bit))) != 0x0)
 
+#ifdef DEBUG
+    #define EmuLog(...) printf(__VA_ARGS__)
+#else 
+    #define EmuLog(...)
+#endif
 // typedef struct {
 //     union
 //     {
@@ -56,22 +60,20 @@
 //     bool redrawscreen;
 // }CPU;
 
-#define STATIKU 
-
-
-STATIKU Word opcode;
-STATIKU Byte memory[0x1000];
-STATIKU Word V[0x10];
-STATIKU Word I;
-STATIKU Word PC;
-STATIKU Byte Display[EMU_SCREENHEIGHT][EMU_SCREENWIDTH];
-STATIKU Byte delaytimer;
-STATIKU Byte soundtimer;
-STATIKU Word Stack[STACK_SIZE];
-STATIKU Word SP;
-STATIKU Byte Key[KEY_SIZE];
-STATIKU bool redrawscreen;
-
+Word opcode;
+Byte memory[0x1000];
+Word V[0x10];
+Word I;
+Word PC;
+Byte Display[EMU_SCREENHEIGHT][EMU_SCREENWIDTH];
+Byte delaytimer;
+Byte soundtimer;
+Word Stack[STACK_SIZE];
+Word SP;
+Byte Key[KEY_SIZE];
+bool redrawscreen;
+bool waiting_for_key_press;
+char* filename;
 
 void InitCPU()
 {
@@ -80,7 +82,7 @@ void InitCPU()
     I = 0;
     opcode = 0x00;
     SP = 0;
-    redrawscreen = true;
+    redrawscreen = false;
     delaytimer = 0;
     soundtimer = 0;
 
@@ -112,17 +114,17 @@ void InitCPU()
 
 void DumpMemory()
 {
-  printf("      C 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F");
+  EmuLog("      C 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F");
 //   for(unsigned int rows = 0; rows < 0x20/*256*/; rows++)
   for(unsigned int rows = 0; rows < 256; rows++)
   {
-    printf("\nR 0x%x:\t", rows);
+    EmuLog("\nR 0x%x:\t", rows);
     for(unsigned int columns = 0; columns < 16; columns++)
     {
-        printf("%02x ", memory[ (rows * 16) + columns ]);
+        EmuLog("%02x ", memory[ (rows * 16) + columns ]);
     }
   }
-  printf("\n");
+  EmuLog("\n");
 }
 
 void drawsprite(Byte x, Byte y, Byte n)
@@ -137,17 +139,16 @@ void drawsprite(Byte x, Byte y, Byte n)
             Byte bit = (byte >> bit_index) & 0x1;
             Byte *pixelp = &Display[ (row + byte_index) % DISPLAY_ROWS ]
                                    [(col + ( 7 - bit_index) % DISPLAY_COLS)];
-            if(bit == 1 & *pixelp == 1)
+            if(bit == 1 && *pixelp == 1)
                 V[0xF] = 1;
             *pixelp = *pixelp ^ bit;
         }
     }
 }
 
-
-
 void LoadProgram(char* gamefile)
 {
+    filename = gamefile;
     FILE* fprogram = NULL;
     long lSize = 0;
     size_t result = 0;
@@ -163,12 +164,12 @@ void LoadProgram(char* gamefile)
     result = fread(&(memory[PROGRAM_START_LOCATION]), 1, MAX_GAME_SIZE, fprogram);
     if(result != lSize)
     {
-        printf("Reading error\n");
+        EmuLog("Reading error\n");
         exit(3);
     }
     fclose(fprogram);
     PC = 0x200;
-    printf("program %s loaded..\n", gamefile);
+    EmuLog("program %s loaded..\n", gamefile);
 }
 
 static inline Byte randbyte() { return (rand() % 256); }
@@ -178,320 +179,299 @@ void RunCPU()
     if(PC > 0x1000)
         return;
     opcode = memory[PC] << 8 | memory[PC + 1];
-    printf("opcode: %04x  PC: %02x ", opcode, PC);
+    EmuLog("opcode: %04x  PC: %02x ", opcode, PC);
 
     // opcode ixyn
 
-    Word x = ( opcode & 0x0F00 ) >>  8;
-    Word y = ( opcode & 0x00F0 ) >>  4;
-    Word n = ( opcode & 0x000F ) >>  0;
+    Word inst = ( opcode & 0xF000 ) >> 0;
+    Word x    = ( opcode & 0x0F00 ) >> 8;
+    Word y    = ( opcode & 0x00F0 ) >> 4;
+    Word n    = ( opcode & 0x000F ) >> 0;
+    Word kk   = ( opcode & 0x00FF ) >> 0;
+    Word nnn  = ( opcode & 0x0FFF ) >> 0;
 
-    switch (opcode & 0xF000)
+    switch (inst)
     {
-        case 0x0000:
+        case 0x0000:  // 00E0 - CLS 00EE - RET 0nnn - SYS addr
         {
-            switch (opcode & 0x00FF)
+            switch (kk)
             {
-                case 0x00E0: // clear screen
+                case 0x00E0:
                 {
-                    printf("clear screen\n");
+                    EmuLog("Clear the screen\n");
                     memset(Display, 0, sizeof(Display));
                     redrawscreen = true;
                     PC += 2;
-                } break;
+                }break;
 
-                case 0x00EE: // return
+                case 0x00EE:
                 {
-                    printf("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaareturn\n");
-                    PC = Stack[ --SP ];
-                    Stack[ SP + 1 ] = 0;
+                    EmuLog("return from subroutine\n");
+                    PC = Stack[ SP - 1 ];
+                    Stack[ SP ] = 0;
+                    SP--;
                 } break;
-
+            
                 default:
-                    printf("unknown opcode: %x in case: 0x0000\n", opcode);
-                    break;
+                {
+                    EmuLog("Unknown opcode %04x\n", opcode);
+                } break;
             }
-        }break;
-
-        case 0x1000: // 0x1NNN
+        } break;
+        case 0x1000: // 1nnn: jump to address
         {
-            printf(" Jump instruction to: %x\n", opcode & 0x0FFF);
-            PC = opcode & 0x0FFF;
-        }
-
-        case 0x2000: // 0x2NNN Calls subroutine at NNN.
+            EmuLog("Jump to address 0x%x\n", nnn);
+            PC = nnn;
+        } break;
+        case 0x2000: // 2nnn: call to address diff is this pushes the pc to the stack
         {
-            printf("subroutine Call instruction: %x\n", opcode & 0x0FFF);
+            EmuLog("Call to subroutine 0x%x\n", nnn);
             Stack[SP++] = PC + 2;
-            PC = opcode & 0x0FFF;
-        }break;
-
-        case 0x3000: // 3xkk: skip next instr if V[x] = kk
+            PC = nnn;
+        } break;
+        case 0x3000: // 3xkk: skip next inst if V[x] == kk
         {
-            printf("Skip next instruction if 0x%x == 0x%x == ", V[x], opcode & 0x00FF);
-            printf(( V[x] == ( opcode & 0x00FF ) ) ? "true\n" : "false\n");
-            PC += ( V[x] == ( opcode & 0x00FF ) ) ? 4 : 2;
-        }break;
-
-        case 0x4000: // 4xkk: skip next instr if V[x] != kk
+            EmuLog("Skip next instruction if 0x%x == 0x%x ==> %s\n", V[x], kk, ( V[x] == kk ) ? "true" : "false");
+            PC += ( V[x] == kk ) ? 4 : 2;
+        } break;
+        case 0x4000: // 4xkk: this would be the same as the prev but with not equal to
         {
-            printf("Skip next instruction if 0x%x != 0x%02x", V[x], opcode & 0x00FF);
-            printf(( V[x] != ( opcode & 0x00FF ) ) ? "true\n" : "false\n");
-            PC += (V[x] != ( opcode & 0x00FF ) ) ? 4 : 2;
-        }break;
-
-        case 0x5000: // 5xy0: skip next instr if V[x] == V[y]
+            EmuLog("Skip next instruction if 0x%x != 0x%x ==> %s\n", V[x], kk, ( V[x] != kk ) ? "true" : "false");
+            PC += ( V[x] != kk ) ? 4 : 2;
+        } break;
+        case 0x5000: // 5xy0: this would compare two registers
         {
-            printf("Skip next instruction if 0x%x == 0x%x\n", V[x], V[y]);
-            printf(( V[x] == V[y] ) ? "true\n" : "false\n");
-            PC = ( V[x] == V[y] ) ? 4 : 2;
-        }break;
-
-        case 0x6000: // 6xkk: set V[x] = kk
+            EmuLog("Skip next instruction if 0x%x == 0x%x ==> %s\n", V[x], V[y], (V[x] == V[y]) ? "true" : "false");
+            PC += (V[x] == V[y]) ? 4 : 2;
+        } break;
+        case 0x6000: // 6xkk: set a register to a value
         {
-            printf("set V register instruction: %x, v[%d] = %d\n", opcode, x, opcode & 0x00FF);
-            V[x] = opcode & 0x00FF;
+            EmuLog("Set V[0x%02x] = 0x%x\n", x, kk);
+            V[x] = kk;
             PC += 2;
-        }break;
-
-        case 0x7000: //  7xkk: set V[x] = V[x] + kk
+        } break;
+        case 0x7000: // 7xkk adds a value to the register
         {
-            printf("add to V register instruction: %x, v[%d] += %d\n", opcode, x, opcode & 0x00FF);
-            V[x] += opcode & 0x00FF;
+            EmuLog("Set V[0x%02x] += 0x%x\n", x, kk);
+            V[x] += kk;
             PC += 2;
-        }break;
-
-        case 0x8000: // 8xyn: Arithmetic logic
+        } break;
+        case 0x8000: // 8xyn: Arithmetics 
         {
-            printf("Arithmetic instruction: %x: ", opcode);
             switch (n)
             {
-                case 0x0: // v[x] = v[y]
+                case 0x0: // set V[x] = V[y]
                 {
-                    printf("\t equal V[%d] = V[%d] = %d\n", x, y, V[y]);
+                    EmuLog("Reg SET V[0x%02x] = V[0x%02x] = 0x%x\n", x, y, V[y]);
                     V[x] = V[y];
                 } break;
-
-                case 0x1:
+                case 0x1: // or two reg
                 {
-                    printf("\t or V[%d] |= V[%d]\n", V[x], V[y]);
+                    EmuLog("Reg OR  V[0x%02x] = V[0x%02x] (%02x) | V[0x%02x] (%02x) ==> 0x%x\n", x, x, V[x], y, V[y], V[x] | V[y]);
                     V[x] = V[x] | V[y];
                 } break;
-
-                case 0x2:
+                case 0x2: // and two reg
                 {
-                    printf("\t and V[%d] &= V[%d]\n", V[x], V[y]);
+                    EmuLog("Reg AND V[0x%02x] = V[0x%02x] (%02x) & V[0x%02x] (%02x) ==> 0x%x\n", x, x, V[x], y, V[y], V[x] & V[y]);
                     V[x] = V[x] & V[y];
                 } break;
-
-                case 0x3:
+                case 0x3: // xor two reg
                 {
-                    printf("\t and V[%d] ^= V[%d]\n", V[x], V[y]);
+                    EmuLog("Reg XOR V[0x%02x] = V[0x%02x] (%02x) ^ V[0x%02x] (%02x) ==> 0x%x\n", x, x, V[x], y, V[y], V[x] ^ V[y]);
                     V[x] = V[x] ^ V[y];
                 } break;
-
-                case 0x4:
+                case 0x4: // add two reg and store v[0xf] if carry is set
                 {
-                    printf("\t add V[%d] += V[%d]\n", x, y);
-                    V[0xF] = ( (int) V[x] + (int) V[y] ) > 255 ? 1 : 0;
+                    EmuLog("Reg ADD V[0x%02x] = V[0x%02x] (%02x) + V[0x%02x] (%02x) ==> 0x%x\n", x, x, V[x], y, V[y], V[x] + V[y]);
+                    V[0xF] = ((int) V[x] + (int) V[y]) > 255 ? 1 : 0; // is carry present
                     V[x] = V[x] + V[y];
                 } break;
-
-                case 0x5:
+                case 0x5: // sub two reg and store v[0xf] if carry is set
                 {
-                    printf("\t sub V[%d] -= V[%d]\n", x, y);
-                    V[0xF] = V[x] > V[y] ? 1 : 0;
+                    EmuLog("Reg SUB V[0x%02x] = V[0x%02x] (%02x) - V[0x%02x] (%02x) ==> 0x%x\n", x, x, V[x], y, V[y], V[x] - V[y]);
+                    V[0xF] = (V[x] > V[y]) ? 1 : 0; // is borrow present
                     V[x] = V[x] - V[y];
                 } break;
-
-                case 0x6:
+                case 0x6: // bit wise ( --> ) operation store least significant bit in V[x] and shifts V[x] to right by 1 
                 {
-                    printf("V[%d] >>= 1 => %d >> 1\n", x, x, V[x]);
+                    EmuLog("Reg SHR V[0x%02x] >>= 1 (%x) ==> (%x)\n", V[x], V[x] >> 1);
                     V[0xF] = V[x] & 0x1;
-                    V[x] = ( V[x] >> 1);
+                    V[x] = V[x] >> 1;
                 } break;
-
-                case 0x7:
+                case 0x7: // Sets VX to VY minus VX. VF is set to 0 when there's a borrow, and 1 when there is not.
                 {
-                    printf("V[%d] = V[%d] - V[%d] => %d - %d\n", x, y, x, V[y], V[x]);
-                    V[0xF] = ( V[y] > V[x] ) ? 1 : 0;
+                    EmuLog("Reg*SUB V[0x%02x] = V[%x] - V[%x] ==> (%x)\n", x, y, x, V[y] - V[x]);
+                    V[0xf] = (V[y] > V[x]) ? 1 :0;
                     V[x] = V[y] - V[x];
                 } break;
-
-                case 0xE:
+                case 0xE: // bit wise ( <-- ) operation store most significant bit in V[x] and shifts V[x] to left by 1 
                 {
-                    printf("V[%d] <<== 1", x);
-                    V[0xF] = ( V[x] >> 7 ) & 0x1;
-                    V[x] = V[x] << 1;
+                    EmuLog("Reg SHL V[0x%02x] <<= 1 (%x) ==> (%x)\n", V[x], V[x] << 1);
+                    V[0xF] = (V[x] >> 7) & 0x1;
+                    V[x] = (V[x] << 1);
                 } break;
-
                 default:
-                    printf("[WARNING]: unknown arithmetic opcode");
-                    break;
+                {
+                    EmuLog("Unknown opcode: %04x\n", opcode);
+                } break;
             }
             PC += 2;
-        }break;
-
-        case 0x9000:
+        } break;
+        case 0x9000: // 9xy0: skip next inst if Vx != Vy
         {
-            printf("Skips the next instruction if VX (V[%d]) does not equal VY (V[%d]) instruction: %x\n", opcode, V[x], V[y]);
-            PC += ( V[x] != V[y] ) ? 4 : 2;
-        }break;
-
-        case 0xA000: // set I address to 0x0FFF
+            EmuLog("Skip next instruction id 0x%x != 0x%x\n", V[x], V[y]);
+            PC += (V[x] != V[y]) ? 4 : 2;
+        } break;
+        case 0xA000: // Annn: set I to address
         {
-            printf(" set I instruction to %x\n", opcode & 0x0FFF);
-            I = opcode & 0x0FFF;
+            EmuLog("Set I to 0x%x\n", nnn);
+            I = nnn;
             PC += 2;
-        }break;
-
-        case 0xB000: // jump to 0x0FFF + V[0]
+        } break;
+        case 0xB000: // Bnnn: jump to location nnn + V[0]
         {
-            printf("jump to 0x0FFF + V[%d]: instruction: %x\n", opcode);
-            PC = ( opcode & 0x0FFF ) + V[0];
-        }break;
-
-        case 0xC000: // Cxkk: V[x] = random byte AND kk
+            EmuLog("Jump to 0x%x + V[0] (%x)\n", nnn, V[0]);
+            PC = V[0] + nnn;
+        } break;
+        case 0xC000: // Cxkk: set V[x] to a random number AND (&) kk
         {
-            printf("C000: instruction: %x\n", opcode);
-            V[x] = randbyte() & ( opcode & 0x00FF );
+            Byte randomnumber = randbyte();
+            EmuLog("Set V[0x%02x] = %x & %x ==> %x\n", randomnumber, kk, randomnumber & kk);
+            V[x] = randomnumber & kk;
             PC += 2;
-        }break;
-
-        case 0xD000: //
+        } break;
+        case 0xD000: // Draw an n-byte sprite starting at memory location I at (Vx, Vy) on the screen and set V[0xF] if collition occurs
         {
-            printf(" draw instruction: %x\n", opcode);
+            EmuLog("Draw sprite at (V[%x], V[%x]) ==> (0x%x, 0x%x) of height: %d\n", x, y, V[x], V[y], n);
             drawsprite(V[x], V[y], n);
-            PC += 2;
             redrawscreen = true;
-        }break;
-
+            PC += 2;
+        } break;
         case 0xE000: // key press events
         {
-            printf("key press event instruction: %x\n", opcode);
-            switch (opcode & 0x00FF)
+            switch (kk)
             {
-                case 0x9E:
-                {
-                    printf("skip next instruction if key[%d] is pressed\n", x);
-                    PC += ( Key[V[x]] ) ? 4 : 2;
-                } break;
-
-                case 0xA1:
-                {
-                    printf("Skip next instruction if key[%d] is not pressed\n");
-                    PC += ( ! Key[V[x]] ) ? 4 : 2;
-                } break;
-        
-                default:
-                    break;
+            case 0x9E:
+            {
+                EmuLog("Skip next instruction if key[%d] is pressed\n", x);
+                PC += (Key[V[x]]) ? 4 : 2;
+            } break;
+            case 0xA1:
+            {
+                EmuLog("Skip next instruction if key[%d] is NOT pressed\n", x);
+                PC += (!Key[V[x]]) ? 4 : 2;
+            } break;
+            default:
+                EmuLog("Unknown opcode: %04x\n", opcode);
+                break;
             }
-        }break;
-
-        case 0xF000: // misc
+        } break;
+        case 0xF000: // miscellaneous functions 
         {
-            switch (opcode & 0x00FF)
+            switch (kk)
             {
-                case 0x0007:
-                {
-                    printf("set delay timer to %x\n", x);
-                    V[x] = delaytimer;
-                    PC += 2;
-                } break;
+            case 0x07:
+            {
+                EmuLog("Set Reg to delay timer V[%x] = %x\n", x, delaytimer);
+                V[x] = delaytimer;
+                PC += 2;
+            } break;
 
-                case 0x000A:
+            case 0x0A: // waiting for a key press, and then stored in VX every thing is halted
+            {
+                EmuLog("Waiting for a key press\r");
+                for(int i = 0; i < KEY_SIZE; i++)
                 {
-                    printf("Wait for a key press, store the value of the key in Vx. 0xF0xA\n");
-
-                    int temp = -1;
-                    for (int i = 0; i < KEY_SIZE; i++) {
-                        if (Key[i]) {
-                            temp = i;
-                            break;
-                        }
+                    if(Key[i])
+                    {
+                        EmuLog("\n");
+                        V[x] = i;
+                        PC += 2;
+                        memset(Key, 0, sizeof(Key));
+                        goto got_key_press;
                     }
-                    if (temp != -1)
-                        V[x] = temp;
-                    else
-                        PC -= 2;
-                    // int i = 0;
-                    // while(true)
-                    // {
-                    //     for(i = 0; i < KEY_SIZE; i++)
-                    //     {
-                    //         if(Key[i])
-                    //         {
-                    //             V[x] = i;
-                    //             goto got_key_press;
-                    //         }
-                    //     }
-                    // }
-                    // got_key_press:
-                    // PC += 2;
-                    for(int j = 0; j < KEY_SIZE; j++)
-                        Key[j] = false;
                 }
+                int jx  = 0;
+                got_key_press:
+                jx  = 12;
+            } break;
 
-                case 0x15:
-                {
-                    delaytimer = V[x];
-                    PC += 2;
-                } break;
+            case 0x15: // Sets the delay timer to VX
+            {
+                EmuLog("Set delay timer = V[0x%02x] = %x\n", x, V[x]);
+                delaytimer = V[x];
+                PC += 2;
+            } break;
 
-                case 0x18:
-                {
-                    soundtimer = V[x];
-                    PC += 2;
-                } break;
+            case 0x18: // Sets the sound timer to VX
+            {
+                EmuLog("Set sound timer = V[0x%02x] = %x\n", x, V[x]);
+                soundtimer = V[x];
+                PC += 2;
+            } break;
 
-                case 0x1E:
-                {
-                    V[0xF] = ( ( I + V[x] ) > 0x0FFF) ? 1 : 0;
-                    I = I + V[x];
-                    PC += 2;
-                } break;
+            case 0x1E:
+            {
+                EmuLog("Adds VX to I: I += V[0x%04x] ==> 0x%04x\n", x, I + V[x]);
+                V[0xF] = ( I + V[x] > 0xFFF) ? 1 : 0;
+                I += V[x];
+                PC += 2;
+            } break;
 
-                case 0x29:
-                {
-                    I = 5 * V[x];
-                    PC += 2;
-                } break;
+            case 0x29: // Sets I to the location of the sprite for the character in VX
+            {
+                EmuLog("Sets I (%x) to the location of the sprite for the character in V[0x%02x]\n", I, V[x]);
+                I = 5 * V[x];
+                PC += 2;
+            } break;
+            
+            case 0x33:
+            {
+                EmuLog("Store BCD for %d starting at address 0x%x\n", V[x], I);
+                memory[I + 0] = (V[x] % 1000) / 100;
+                memory[I + 1] = (V[x] %  100) /  10;
+                memory[I + 2] = (V[x] %   10) /   1;
+                PC += 2;
+            } break;
 
-                case 0x33:
-                {
-                    printf("Store BCD for %d starting at address 0x%x\n", V[x], I);
-                    memory[I + 0] = ( V[x] % 1000 ) / 100;
-                    memory[I + 1] = ( V[x] % 100  ) / 10 ;
-                    memory[I + 2] = ( V[x] % 10   );
-                    PC += 2;
-                } break;
+            case 0x55:
+            {
+                EmuLog("Copy sprite from registers 0 to 0x%x into memory at address 0x%x\n", x, I);
+                for(int i = 0; i <= x; i++)
+                    memory[ I + i] = V[i];
+                I  += x + 1;
+                PC += 2;
+            } break;
 
-                case 0x55:
-                {
-                    printf("Copy sprite from registers 0 to 0x%x into memory at address 0x%x\n", x, I);
-                    for(int i = 0; i <= x; i++)
-                        memory[ I + i ] = V[i];
-                    I += x + 1;
-                    PC += 2;
-                } break;
+            case 0x65:
+            {
+                EmuLog("Copy sprite from memory at address 0x%x into registers 0 to 0x%x\n", x, I);
+                for(int i = 0; i <= x; i++)
+                    V[i] = memory[ I + i];
+                I += x + 1;
+                PC += 2;
+            } break;
 
-                case 0x65:
-                {
-                    printf("Copy sprite from memory at address 0x%x into registers 0 to 0x%x\n", x, I);
-                    for(int i = 0; i <= x; i++)                    
-                        V[i] = memory[ I + i ];
-                    I += x + 1;
-                    PC += 2;
-                } break;
-                default:
-                    break;
+            default:
+                EmuLog("Unknown opcode %04x\n", opcode);
+                break;
             }
-        }break;
+        } break;
+        
         default:
-            printf("unhandled instruction: %x\n", opcode);
+            EmuLog("Unknown opcode %04x\n", opcode);
             break;
     }
 
+    if (delaytimer > 0) {
+        --delaytimer;
+    }
+    if (soundtimer > 0) {
+        --soundtimer;
+        if (soundtimer == 0) {
+            EmuLog("BEEP!\n");
+        }
+    }
 }
 
 void setredrawscreen(bool redraw)
@@ -512,24 +492,32 @@ bool shouldredrawscreen()
 Byte GetPixel( int x, int y )
 {
     Byte* byte = &Display[x][y];
-    // printf("display: %d, ", *byte);
+    // EmuLog("display: %d, ", *byte);
     if(*byte > 0x0)
         return 0xFF;
     return 0x00;
 }
 
+void ResetEmulator()
+{
+    InitCPU();
+    LoadProgram(filename);
+    memset(Stack, 0, sizeof(Stack));
+    memset(V, 0, sizeof(V));
+    memset(Display, 0, sizeof(Display));
+}
 
 static void debug_draw() {
     int x, y;
 
     for (y = 0; y < DISPLAY_ROWS; y++) {
         for (x = 0; x < DISPLAY_COLS; x++) {
-            if (Display[y][x] == 0) printf("0");
-            else printf(" ");
+            if (Display[y][x] == 0) EmuLog(" ");
+            else EmuLog("0");
         }
-        printf("\n");
+        EmuLog("\n");
     }
-    printf("\n");
+    EmuLog("\n");
 }
 
 

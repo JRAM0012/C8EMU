@@ -8,16 +8,17 @@
                 "-IC:\\raylib\\raylib\\src",
                 "-LC:\\raylib\\raylib\\src",
                 "-g",
-                "${file}",
+                "D:\\softwareProjects\\C8EMU\\src\\C8EMU.c",
+                "D:\\softwareProjects\\C8EMU\\src\\main.c",
                 "-o",
-                "${fileDirname}\\${fileBasenameNoExtension}.exe",
+                "D:\\softwareProjects\\C8EMU\\bin\\C8EMU.exe",
                 "-lraylib",
                 "-lgdi32",
                 "-luser32",
                 "-lwinmm"
             ],
             "options": {
-                "cwd": "${fileDirname}"
+                "cwd": "D:\\softwareProjects\\C8EMU\\bin"
             },
             "problemMatcher": [
                 "$gcc"

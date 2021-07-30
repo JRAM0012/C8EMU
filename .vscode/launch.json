@@ -8,7 +8,7 @@
             "name": "gcc.exe - Build and debug active file",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${fileDirname}\\${fileBasenameNoExtension}.exe",
+            "program": "D:\\softwareProjects\\C8EMU\\bin\\C8EMU.exe",
             "args": [],
             "stopAtEntry": false,
             "cwd": "${fileDirname}/../bin",
