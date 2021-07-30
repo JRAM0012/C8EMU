@@ -20,10 +20,11 @@ int main()
 {
     InitWindow(500, 500, "C8EMU");
     InitCPU();
-    LoadProgram("assets\\IBM Logo.ch8");
+    // LoadProgram("assets\\IBM Logo.ch8");
     // LoadProgram("assets\\testprogram.ch8");
     // LoadProgram("assets\\tank.ch8");
     // LoadProgram("assets\\invaders.ch8");
+    LoadProgram("assets\\Keypad Test.ch8");
     // LoadProgram("assets\\pong.ch8");
     // LoadProgram("assets\\trip8.ch8");
     // LoadProgram("assets\\breakout.ch8");
@@ -128,17 +129,17 @@ int main()
         int mousey = GetMouseY();
         DrawText(FormatText("Mouse X: %d, Mouse Y: %d", mousex, mousey), 10, 450, 20, RED);
 
-        if(GuiButton(KEYPAD_BUTTON(0, 0), "0")) Key[0x0] = true;
-        if(GuiButton(KEYPAD_BUTTON(0, 1), "1")) Key[0x1] = true;
-        if(GuiButton(KEYPAD_BUTTON(0, 2), "2")) Key[0x2] = true;
-        if(GuiButton(KEYPAD_BUTTON(0, 3), "3")) Key[0x3] = true;
-        if(GuiButton(KEYPAD_BUTTON(1, 0), "4")) Key[0x4] = true;
+        if(GuiButton(KEYPAD_BUTTON(0, 0), "1")) Key[0x1] = true;
+        if(GuiButton(KEYPAD_BUTTON(0, 1), "4")) Key[0x4] = true;
+        if(GuiButton(KEYPAD_BUTTON(0, 2), "7")) Key[0x7] = true;
+        if(GuiButton(KEYPAD_BUTTON(0, 3), "A")) Key[0xA] = true;
+        if(GuiButton(KEYPAD_BUTTON(1, 0), "2")) Key[0x2] = true;
         if(GuiButton(KEYPAD_BUTTON(1, 1), "5")) Key[0x5] = true;
-        if(GuiButton(KEYPAD_BUTTON(1, 2), "6")) Key[0x6] = true;
-        if(GuiButton(KEYPAD_BUTTON(1, 3), "7")) Key[0x7] = true;
-        if(GuiButton(KEYPAD_BUTTON(2, 0), "8")) Key[0x8] = true;
-        if(GuiButton(KEYPAD_BUTTON(2, 1), "9")) Key[0x9] = true;
-        if(GuiButton(KEYPAD_BUTTON(2, 2), "A")) Key[0xA] = true;
+        if(GuiButton(KEYPAD_BUTTON(1, 2), "8")) Key[0x8] = true;
+        if(GuiButton(KEYPAD_BUTTON(1, 3), "0")) Key[0x0] = true;
+        if(GuiButton(KEYPAD_BUTTON(2, 0), "3")) Key[0x3] = true;
+        if(GuiButton(KEYPAD_BUTTON(2, 1), "6")) Key[0x6] = true;
+        if(GuiButton(KEYPAD_BUTTON(2, 2), "9")) Key[0x9] = true;
         if(GuiButton(KEYPAD_BUTTON(2, 3), "B")) Key[0xB] = true;
         if(GuiButton(KEYPAD_BUTTON(3, 0), "C")) Key[0xC] = true;
         if(GuiButton(KEYPAD_BUTTON(3, 1), "D")) Key[0xD] = true;
