@@ -40,7 +40,6 @@
 //                     Byte c8Font[0x50];
 //                 };
 //             };
-            
 //             Byte programram[0xE9F - 0x200];
 //             union {
 //                 Byte internal[0xEFF - 0xEA0];
@@ -62,7 +61,7 @@
 
 Word opcode;
 Byte memory[0x1000];
-Word V[0x10];
+Byte V[0x10];
 Word I;
 Word PC;
 Byte Display[EMU_SCREENHEIGHT][EMU_SCREENWIDTH];
@@ -231,7 +230,7 @@ void RunCPU()
         } break;
         case 0x3000: // 3xkk: skip next inst if V[x] == kk
         {
-            EmuLog("Skip next instruction if 0x%x == 0x%x ==> %s\n", V[x], kk, ( V[x] == kk ) ? "true" : "false");
+            EmuLog("Skip next instruction if V[%02x] 0x%x == 0x%x ==> %s\n", x, V[x], kk, ( V[x] == kk ) ? "true" : "false");
             PC += ( V[x] == kk ) ? 4 : 2;
         } break;
         case 0x4000: // 4xkk: this would be the same as the prev but with not equal to
@@ -336,7 +335,7 @@ void RunCPU()
         case 0xC000: // Cxkk: set V[x] to a random number AND (&) kk
         {
             Byte randomnumber = randbyte();
-            EmuLog("Set V[0x%02x] = %x & %x ==> %x\n", randomnumber, kk, randomnumber & kk);
+            EmuLog("Set V[0x%02x] = %x & %x ==> %x\n", x, randomnumber, kk, randomnumber & kk);
             V[x] = randomnumber & kk;
             PC += 2;
         } break;
@@ -412,7 +411,7 @@ void RunCPU()
 
             case 0x1E:
             {
-                EmuLog("Adds VX to I: I += V[0x%04x] ==> 0x%04x\n", x, I + V[x]);
+                EmuLog("Adds VX to I: I += V[0x%02x] ==> 0x%04x\n", x, I + V[x]);
                 V[0xF] = ( I + V[x] > 0xFFF) ? 1 : 0;
                 I += V[x];
                 PC += 2;
@@ -430,7 +429,7 @@ void RunCPU()
                 EmuLog("Store BCD for %d starting at address 0x%x\n", V[x], I);
                 memory[I + 0] = (V[x] % 1000) / 100;
                 memory[I + 1] = (V[x] %  100) /  10;
-                memory[I + 2] = (V[x] %   10) /   1;
+                memory[I + 2] = (V[x] %   10)      ;
                 PC += 2;
             } break;
 
@@ -489,15 +488,6 @@ bool shouldredrawscreen()
     return false;
 }
 
-Byte GetPixel( int x, int y )
-{
-    Byte* byte = &Display[x][y];
-    // EmuLog("display: %d, ", *byte);
-    if(*byte > 0x0)
-        return 0xFF;
-    return 0x00;
-}
-
 void ResetEmulator()
 {
     InitCPU();
@@ -505,27 +495,7 @@ void ResetEmulator()
     memset(Stack, 0, sizeof(Stack));
     memset(V, 0, sizeof(V));
     memset(Display, 0, sizeof(Display));
+    setredrawscreen(true);
 }
-
-static void debug_draw() {
-    int x, y;
-
-    for (y = 0; y < DISPLAY_ROWS; y++) {
-        for (x = 0; x < DISPLAY_COLS; x++) {
-            if (Display[y][x] == 0) EmuLog(" ");
-            else EmuLog("0");
-        }
-        EmuLog("\n");
-    }
-    EmuLog("\n");
-}
-
-
-
-// void SetPixel(int x, int y, Byte value)
-// {
-//     Display[x / 8][y] |= x % 8;
-// }
-
 
 #endif // __C8EMU__

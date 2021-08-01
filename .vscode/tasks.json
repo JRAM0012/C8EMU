@@ -6,13 +6,12 @@
             "command": "C:\\raylib\\mingw\\bin\\gcc.exe",
             "args": [
                 "-IC:\\raylib\\raylib\\src",
-                "-LC:\\raylib\\raylib\\src",
                 "-g",
-                "D:\\softwareProjects\\C8EMU\\src\\C8EMU.c",
                 "D:\\softwareProjects\\C8EMU\\src\\main.c",
                 "-o",
                 "D:\\softwareProjects\\C8EMU\\bin\\C8EMU.exe",
-                "-lraylib",
+                "-LD:\\softwareProjects\\C8EMU\\lib",
+                "-lraylib-nolog",
                 "-lgdi32",
                 "-luser32",
                 "-lwinmm"

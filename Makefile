@@ -8,7 +8,7 @@ SRC = $(wildcard src/*.c)
 OBJS=$(patsubst src/%.c, objs/%.o, $(SRC))
 
 CFLAGS= -I$(RAYLIB_INSTALL_DIR)
-LDFLAGS= -L$(RAYLIB_INSTALL_DIR) -lraylib -lgdi32 -luser32 -lwinmm
+LDFLAGS= -Llib -lraylib-nolog -lgdi32 -luser32 -lwinmm
 
 all: dirs $(TARGET)
 
