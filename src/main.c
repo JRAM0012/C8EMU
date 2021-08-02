@@ -21,10 +21,10 @@ int main()
 {
     InitWindow(500, 500, "C8EMU");
     InitCPU();
-    LoadProgram("assets\\IBM Logo.ch8");
+    // LoadProgram("assets\\IBM Logo.ch8");
     // LoadProgram("assets\\testprogram.ch8");
-    //  LoadProgram("assets\\myperson.ch8");
-    // LoadProgram("assets\\tank.ch8");
+    // LoadProgram("assets\\myperson.ch8");
+    LoadProgram("assets\\tank.ch8");
     // LoadProgram("assets\\invaders.ch8");
     // LoadProgram("assets\\Keypad Test.ch8");
     // LoadProgram("assets\\pong.ch8");
@@ -62,11 +62,11 @@ int main()
         }
         if(shouldredrawscreen())
         {
+            Color* pixel = image.data;
             for(int x = 0; x < 32; x++)
             {
                 for(int y = 0; y < 64; y++)
                 {
-                    Color* pixel = image.data;
                     Byte color = Display[x][y] > 0x0 ? 0xFF : 0x00;
                     pixel[ x * 64 + y ] = (Color) { color, color, color, 255 };
                 }
@@ -76,7 +76,7 @@ int main()
         }
 
 
-        ClearBackground(RAYWHITE);
+        ClearBackground(SKYBLUE);
         BeginDrawing();
 
         if(GuiButton(GUI_BUTTON(0), "DUMP"))
@@ -113,13 +113,13 @@ int main()
         }
 
         GuiLabel((Rectangle) {GUI_PADDINGRL, GUI_PADDINGTB + 30 * 7, 12, 34}, FormatText("Program counter: %x", PC));
-        GuiLabel((Rectangle) {GUI_PADDINGRL, GUI_PADDINGTB + 30 * 8, 12, 34}, FormatText("Index Counter: %x", I));
+        GuiLabel((Rectangle) {GUI_PADDINGRL, GUI_PADDINGTB + 30 * 8, 12, 34}, FormatText("Index Counter: %x", IP));
         GuiLabel((Rectangle) {GUI_PADDINGRL, GUI_PADDINGTB + 30 * 9, 12, 34}, FormatText("Stack Pointer: %x", SP));
 
-        for(int i = 0; i < 0x10; i++)
+        for(int i = 0; i < STACK_SIZE; i++)
             GuiLabel((Rectangle) { GUI_PADDINGRL,      GUI_PADDINGTB + 30 * 10 + ( 10 * i ), 5, 6 }, FormatText("stack %x: %d", i, Stack[i]));
 
-        for(int i = 0; i < 0x10; i++)
+        for(int i = 0; i < VREG_SIZE; i++)
             GuiLabel((Rectangle) { GUI_PADDINGRL + 70, GUI_PADDINGTB + 30 * 10 + ( 10 * i ), 5, 6}, FormatText("V reg[%x]: %d", i, V[i]));
 
 

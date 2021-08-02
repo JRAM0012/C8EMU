@@ -7,6 +7,6 @@
         "string.h": "c",
         "stdint.h": "c"
     },
-    "C_Cpp.intelliSenseEngineFallback": "Enabled",
+    "C_Cpp.intelliSenseEngineFallback": "Disabled",
     "C_Cpp.default.compilerPath": "c:\\Users\\DELL\\.vscode\\extensions\\bartmanabyss.amiga-debug-1.0.0\\bin\\opt\\bin\\m68k-amiga-elf-gcc.exe"
 }

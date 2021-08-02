@@ -11,12 +11,14 @@
 #define Byte uint8_t
 #define Word uint16_t
 
-#define FONTSET_ADDRESS 0x0
+#define FONTSET_ADDRESS 0x00
+#define FONTSET_SIZE 0x50
 #define EMU_SCREENWIDTH  64
 #define EMU_SCREENHEIGHT 32
 #define PROGRAM_START_LOCATION 0x200
 #define MAX_GAME_SIZE (0x1000 - 0x200)
-#define STACK_SIZE 16
+#define STACK_SIZE 12 // could increate for modern chip 8 programs to allow more that 12 subrotine calls
+#define VREG_SIZE 16
 #define KEY_SIZE 16
 #define DISPLAY_COLS 64
 #define DISPLAY_ROWS 32
@@ -62,7 +64,7 @@
 Word opcode;
 Byte memory[0x1000];
 Byte V[0x10];
-Word I;
+Word IP;
 Word PC;
 Byte Display[EMU_SCREENHEIGHT][EMU_SCREENWIDTH];
 Byte delaytimer;
@@ -78,14 +80,14 @@ void InitCPU()
 {
     memset(memory, 0x0, sizeof(memory));
     PC = 0x200;
-    I = 0;
+    IP = 0;
     opcode = 0x00;
     SP = 0;
     redrawscreen = false;
     delaytimer = 0;
     soundtimer = 0;
 
-    unsigned char FONTSET[80] =
+    unsigned char FONTSET[FONTSET_SIZE] =
         {
             0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
             0x20, 0x60, 0x20, 0x20, 0x70, // 1
@@ -105,8 +107,8 @@ void InitCPU()
             0xF0, 0x80, 0xF0, 0x80, 0x80  // F
         };
 
-    for (int i = 0; i < 0x50; i++)
-        memory[ FONTSET_ADDRESS + i] = FONTSET[i];
+    for (int i = 0; i < FONTSET_SIZE; i++)
+        memory[i] = FONTSET[i];
 
     srand(time(NULL));
 }
@@ -114,7 +116,7 @@ void InitCPU()
 void DumpMemory()
 {
   EmuLog("      C 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F");
-//   for(unsigned int rows = 0; rows < 0x20/*256*/; rows++)
+//   for(unsigned int rows = 0; rows < 0x20; rows++) // dump until program code
   for(unsigned int rows = 0; rows < 256; rows++)
   {
     EmuLog("\nR 0x%x:\t", rows);
@@ -132,7 +134,7 @@ void drawsprite(Byte x, Byte y, Byte n)
     V[0xF] = 0;
     for(int byte_index = 0; byte_index < n; byte_index++)
     {
-        Byte byte = memory[ I + byte_index];
+        Byte byte = memory[ IP + byte_index];
         for(int bit_index = 0; bit_index < 8; bit_index++)
         {
             Byte bit = (byte >> bit_index) & 0x1;
@@ -206,7 +208,7 @@ void RunCPU()
                 case 0x00EE:
                 {
                     EmuLog("return from subroutine\n");
-                    PC = Stack[ SP - 1 ];
+                    PC = Stack[ PC - 1 ];
                     Stack[ SP ] = 0;
                     SP--;
                 } break;
@@ -220,12 +222,12 @@ void RunCPU()
         case 0x1000: // 1nnn: jump to address
         {
             EmuLog("Jump to address 0x%x\n", nnn);
-            PC = nnn;
+           PC = nnn;
         } break;
         case 0x2000: // 2nnn: call to address diff is this pushes the pc to the stack
         {
             EmuLog("Call to subroutine 0x%x\n", nnn);
-            Stack[SP++] = PC + 2;
+            Stack[SP++] =PC + 2;
             PC = nnn;
         } break;
         case 0x3000: // 3xkk: skip next inst if V[x] == kk
@@ -324,7 +326,7 @@ void RunCPU()
         case 0xA000: // Annn: set I to address
         {
             EmuLog("Set I to 0x%x\n", nnn);
-            I = nnn;
+            IP = nnn;
             PC += 2;
         } break;
         case 0xB000: // Bnnn: jump to location nnn + V[0]
@@ -411,43 +413,43 @@ void RunCPU()
 
             case 0x1E:
             {
-                EmuLog("Adds VX to I: I += V[0x%02x] ==> 0x%04x\n", x, I + V[x]);
-                V[0xF] = ( I + V[x] > 0xFFF) ? 1 : 0;
-                I += V[x];
+                EmuLog("Adds VX to I: I += V[0x%02x] ==> 0x%04x\n", x, IP + V[x]);
+                V[0xF] = ( IP + V[x] > 0xFFF) ? 1 : 0;
+                IP += V[x];
                 PC += 2;
             } break;
 
             case 0x29: // Sets I to the location of the sprite for the character in VX
             {
-                EmuLog("Sets I (%x) to the location of the sprite for the character in V[0x%02x]\n", I, V[x]);
-                I = 5 * V[x];
+                EmuLog("Sets I (%x) to the location of the sprite for the character in V[0x%02x]\n", IP, V[x]);
+                IP = 5 * V[x];
                 PC += 2;
             } break;
             
             case 0x33:
             {
-                EmuLog("Store BCD for %d starting at address 0x%x\n", V[x], I);
-                memory[I + 0] = (V[x] % 1000) / 100;
-                memory[I + 1] = (V[x] %  100) /  10;
-                memory[I + 2] = (V[x] %   10)      ;
+                EmuLog("Store BCD for %d starting at address 0x%x\n", V[x], IP);
+                memory[IP + 0] = (V[x] % 1000) / 100;
+                memory[IP + 1] = (V[x] %  100) /  10;
+                memory[IP + 2] = (V[x] %   10)      ;
                 PC += 2;
             } break;
 
             case 0x55:
             {
-                EmuLog("Copy sprite from registers 0 to 0x%x into memory at address 0x%x\n", x, I);
+                EmuLog("Copy sprite from registers 0 to 0x%x into memory at address 0x%x\n", x, IP);
                 for(int i = 0; i <= x; i++)
-                    memory[ I + i] = V[i];
-                I  += x + 1;
+                    memory[ IP + i] = V[i];
+                IP  += x + 1;
                 PC += 2;
             } break;
 
             case 0x65:
             {
-                EmuLog("Copy sprite from memory at address 0x%x into registers 0 to 0x%x\n", x, I);
+                EmuLog("Copy sprite from memory at address 0x%x into registers 0 to 0x%x\n", x, IP);
                 for(int i = 0; i <= x; i++)
-                    V[i] = memory[ I + i];
-                I += x + 1;
+                    V[i] = memory[ IP + i];
+                IP += x + 1;
                 PC += 2;
             } break;
 
