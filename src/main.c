@@ -112,15 +112,15 @@ int main()
             if(run == 1) run = 0;
         }
 
-        GuiLabel((Rectangle) {GUI_PADDINGRL, GUI_PADDINGTB + 30 * 7, 12, 34}, FormatText("Program counter: %x", PC));
-        GuiLabel((Rectangle) {GUI_PADDINGRL, GUI_PADDINGTB + 30 * 8, 12, 34}, FormatText("Index Counter: %x", IP));
-        GuiLabel((Rectangle) {GUI_PADDINGRL, GUI_PADDINGTB + 30 * 9, 12, 34}, FormatText("Stack Pointer: %x", SP));
+        GuiLabel((Rectangle) {GUI_PADDINGRL, GUI_PADDINGTB + 30 * 7, 12, 34}, TextFormat("Program counter: %x", PC));
+        GuiLabel((Rectangle) {GUI_PADDINGRL, GUI_PADDINGTB + 30 * 8, 12, 34}, TextFormat("Index Counter: %x", IP));
+        GuiLabel((Rectangle) {GUI_PADDINGRL, GUI_PADDINGTB + 30 * 9, 12, 34}, TextFormat("Stack Pointer: %x", SP));
 
         for(int i = 0; i < STACK_SIZE; i++)
-            GuiLabel((Rectangle) { GUI_PADDINGRL,      GUI_PADDINGTB + 30 * 10 + ( 10 * i ), 5, 6 }, FormatText("stack %x: %d", i, Stack[i]));
+            GuiLabel((Rectangle) { GUI_PADDINGRL,      GUI_PADDINGTB + 30 * 10 + ( 10 * i ), 5, 6 }, TextFormat("stack %x: %d", i, Stack[i]));
 
         for(int i = 0; i < VREG_SIZE; i++)
-            GuiLabel((Rectangle) { GUI_PADDINGRL + 70, GUI_PADDINGTB + 30 * 10 + ( 10 * i ), 5, 6}, FormatText("V reg[%x]: %d", i, V[i]));
+            GuiLabel((Rectangle) { GUI_PADDINGRL + 70, GUI_PADDINGTB + 30 * 10 + ( 10 * i ), 5, 6}, TextFormat("V reg[%x]: %d", i, V[i]));
 
 
         if(IsKeyPressed(KEY_A))
